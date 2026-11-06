@@ -1,0 +1,1063 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lebanon Weather Maps</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+*{box-sizing:border-box}
+
+body{
+ margin:0;
+ background:#101827;
+ color:white;
+ font-family:Arial,sans-serif;
+}
+
+header{
+ background:#172438;
+ padding:15px;
+ text-align:center;
+ border-bottom:1px solid #34445c;
+}
+
+header h2{
+ margin:0;
+ color:#61c8ff;
+ font-size:21px;
+}
+
+header p{
+ margin:6px 0 0;
+ color:#bdc9d8;
+ font-size:12px;
+}
+
+.controls{
+ background:#172438;
+ padding:12px;
+}
+
+.controls label{
+ display:block;
+ margin-bottom:8px;
+ font-size:13px;
+}
+
+select{
+ width:100%;
+ padding:11px;
+ border-radius:7px;
+ border:1px solid #536780;
+ background:#253952;
+ color:white;
+ font-size:14px;
+}
+
+#status{
+ margin-top:10px;
+ font-size:12px;
+ color:#b9d7ec;
+ line-height:1.7;
+}
+
+#map{
+ width:100%;
+ height:65vh;
+ min-height:430px;
+ background:#dce6ed;
+}
+
+.radar-controls{
+ display:none;
+ margin-top:12px;
+ padding:10px;
+ background:#20334c;
+ border-radius:8px;
+}
+
+.radar-buttons{
+ display:flex;
+ gap:8px;
+ align-items:center;
+}
+
+.radar-buttons button{
+ flex:1;
+ padding:10px;
+ border:1px solid #536780;
+ border-radius:7px;
+ background:#304a68;
+ color:white;
+ font-size:14px;
+}
+
+#radarSlider{
+ width:100%;
+ margin-top:15px;
+ accent-color:#61c8ff;
+}
+
+#radarTime{
+ margin-top:8px;
+ text-align:center;
+ font-size:12px;
+ color:#cde8ff;
+}
+
+.radar-note{
+ margin-top:10px;
+ font-size:11px;
+ line-height:1.6;
+ color:#f1dca0;
+}
+
+.legend{
+ padding:13px;
+ background:#172438;
+}
+
+.legend-title{
+ font-size:13px;
+ margin-bottom:9px;
+}
+
+.legend-colors{
+ display:flex;
+ height:15px;
+ border-radius:5px;
+ overflow:hidden;
+}
+
+.legend-colors span{
+ flex:1;
+}
+
+.legend-labels{
+ display:flex;
+ justify-content:space-between;
+ margin-top:5px;
+ font-size:10px;
+ color:#d0d9e5;
+}
+
+.info{
+ background:#172438;
+ padding:12px;
+ color:#bdc9d8;
+ font-size:12px;
+ line-height:1.7;
+}
+
+.leaflet-popup-content-wrapper{
+ border-radius:9px;
+}
+
+.leaflet-popup-content{
+ font-family:Arial,sans-serif;
+ direction:rtl;
+ text-align:right;
+ line-height:1.7;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+ <h2>Lebanon Weather AI</h2>
+ <p>منصة الطقس التفاعلية - لبنان وشرق المتوسط</p>
+</header>
+
+<div class="controls">
+
+ <label for="mapMode">نوع الخريطة:</label>
+
+ <select id="mapMode">
+  <option value="forecast">توقعات النماذج الجوية</option>
+  <option value="radar">رادار الأمطار - الرصد السابق</option>
+ </select>
+
+ <div id="periodBox" style="margin-top:12px">
+
+  <label for="period">الفترة الزمنية:</label>
+  <select id="period">
+   <option value="24" selected>خلال 24 ساعة</option>
+   <option value="48">خلال 48 ساعة</option>
+   <option value="72">خلال 72 ساعة</option>
+  </select>
+
+  <label for="modelSelect" style="margin-top:12px">النموذج الجوي:</label>
+  <select id="modelSelect">
+   <option value="ECMWF">ECMWF IFS</option>
+   <option value="GFS">GFS</option>
+   <option value="ICON">ICON</option>
+   <option value="ENSEMBLE">ENSEMBLE – النموذج التجميعي</option>
+  </select>
+
+  <label for="variableSelect" style="margin-top:12px">العنصر الجوي:</label>
+  <select id="variableSelect">
+   <option value="precipitation_sum">تراكم الأمطار (ملم)</option>
+   <option value="temperature_mean">متوسط الحرارة (°C)</option>
+   <option value="humidity_mean">متوسط الرطوبة (%)</option>
+   <option value="wind_speed_mean">متوسط سرعة الرياح (كم/س)</option>
+   <option value="wind_speed_max">أعلى سرعة رياح (كم/س)</option>
+   <option value="wind_gust_max">أعلى هبّة رياح (كم/س)</option>
+   <option value="pressure_min">أدنى ضغط جوي (hPa)</option>
+   <option value="cloud_cover_mean">متوسط الغطاء السحابي (%)</option>
+   <option value="snowfall_sum">تراكم الثلوج (سم)</option>
+  </select>
+
+ </div>
+
+ <div class="radar-controls" id="radarControls">
+
+  <div class="radar-buttons">
+   <button id="previousFrame">السابق</button>
+   <button id="playRadar">تشغيل ▶</button>
+   <button id="nextFrame">التالي</button>
+  </div>
+
+  <input
+   type="range"
+   id="radarSlider"
+   min="0"
+   max="0"
+   value="0"
+  >
+
+  <div id="radarTime">بانتظار بيانات الرادار...</div>
+
+  <button
+   id="refreshRadar"
+   style="width:100%;margin-top:10px"
+  >
+   تحديث الرادار
+  </button>
+
+  <div class="radar-note">
+   يعرض هذا المصدر صور الرادار السابقة فقط.
+   قد تكون تغطية لبنان جزئية أو غير متوفرة.
+   المنطقة الشفافة لا تعني بالضرورة عدم وجود أمطار.
+  </div>
+
+ </div>
+
+ <div id="status">جارٍ تجهيز الخريطة...</div>
+
+</div>
+
+<div id="map"></div>
+
+<div class="legend" id="forecastLegend">
+
+ <div class="legend-title" id="legendTitle">تراكم الهطول المطري (ملم)</div>
+ <div class="legend-colors" id="legendColors"></div>
+ <div class="legend-labels" id="legendLabels"></div>
+
+</div>
+
+<div class="info">
+ بيانات التوقعات: نماذج ECMWF IFS وGFS وICON عبر Open-Meteo.<br>
+ بيانات الرادار: RainViewer (صور رادارية سابقة).<br>
+ الشبكة تضم 272 نقطة، ومخرجات التوقعات 24 و48 و72 ساعة.<br>
+ القيم تمثل مخرجات النماذج وليست قياسات محطات رصد.
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+/* =================================
+   1. إعداد الخريطة
+================================= */
+
+const map=L.map("map",{
+ preferCanvas:true
+}).setView([33.9,36.0],7);
+
+L.tileLayer(
+ "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+ {
+  attribution:
+   '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+  maxZoom:18
+ }
+ ).addTo(map);
+
+
+/* =================================
+   2. حدود لبنان - خط أسود واضح
+================================= */
+map.createPane("lebanonBoundaryPane");
+map.getPane("lebanonBoundaryPane").style.zIndex=650;
+map.getPane("lebanonBoundaryPane").style.pointerEvents="none";
+
+const LEBANON_BOUNDARY_URL=
+ "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
+let lebanonBoundaryLayer=null;
+
+async function loadLebanonBoundary(){
+ try{
+  const response=await fetch(LEBANON_BOUNDARY_URL,{cache:"force-cache"});
+  if(!response.ok)throw new Error("HTTP "+response.status);
+  const geoData=await response.json();
+  const features=geoData.features || [];
+  const feature=features.find(item=>{
+   const props=item.properties || {};
+   const name=String(props.ADMIN || props.name || props.NAME || props.admin || "").trim().toLowerCase();
+   return name==="lebanon";
+  });
+  if(!feature)throw new Error("لم يتم العثور على حدود لبنان");
+  if(lebanonBoundaryLayer)map.removeLayer(lebanonBoundaryLayer);
+  lebanonBoundaryLayer=L.geoJSON(feature,{
+   pane:"lebanonBoundaryPane",
+   interactive:false,
+   style:{color:"#000000",weight:3.5,opacity:1,fill:false,fillOpacity:0}
+  }).addTo(map);
+  lebanonBoundaryLayer.bringToFront();
+ }catch(error){
+  console.error("Lebanon boundary error:",error);
+ }
+}
+
+
+/* =================================
+   3. توسيع نطاق الخريطة
+================================= */
+
+/*
+   غرباً: البحر المتوسط
+   شمالاً: شمال لبنان وسوريا
+   جنوباً: جنوب لبنان والمناطق المجاورة
+   شرقاً: البقاع وشرق لبنان والمناطق السورية
+*/
+
+const MIN_LON=34.45;
+const MAX_LON=37.65;
+
+const MIN_LAT=32.15;
+const MAX_LAT=35.45;
+
+const GRID_STEP=0.20;
+
+
+/* =================================
+   3. إنشاء الشبكة الجغرافية
+================================= */
+
+const lons=[];
+const lats=[];
+
+for(
+ let lon=MIN_LON+GRID_STEP/2;
+ lon<MAX_LON;
+ lon+=GRID_STEP
+){
+ lons.push(Number(lon.toFixed(4)));
+}
+
+for(
+ let lat=MIN_LAT+GRID_STEP/2;
+ lat<=MAX_LAT+0.000001;
+ lat+=GRID_STEP
+){
+ lats.push(Number(lat.toFixed(4)));
+}
+
+const locations=[];
+
+for(let j=0;j<lats.length;j++){
+
+ for(let i=0;i<lons.length;i++){
+
+  locations.push({
+   lat:lats[j],
+   lon:lons[i],
+   i:i,
+   j:j
+  });
+
+ }
+
+}
+
+
+/* =================================
+   4. العناصر والحالة
+================================= */
+
+const modeSelect=document.getElementById("mapMode");
+const periodSelect=document.getElementById("period");
+const modelSelect=document.getElementById("modelSelect");
+const variableSelect=document.getElementById("variableSelect");
+const statusBox=document.getElementById("status");
+
+let weatherRecords=null;
+let rainRecords=null;
+let weatherIndex=new Map();
+let rainIndex=new Map();
+let forecastOverlay=null;
+
+let radarManifest=null;
+let radarFrames=[];
+let radarLayer=null;
+
+let radarIndex=0;
+let radarTimer=null;
+
+let radarLoading=false;
+
+
+/* =================================
+   5. توقيت لبنان
+================================= */
+
+function currentLocalHour(){
+
+ const parts=new Intl.DateTimeFormat(
+  "en-GB",
+  {
+   timeZone:"Asia/Beirut",
+   year:"numeric",
+   month:"2-digit",
+   day:"2-digit",
+   hour:"2-digit",
+   hourCycle:"h23"
+  }
+ ).formatToParts(new Date());
+
+ const v={};
+
+ parts.forEach(p=>{
+  v[p.type]=p.value;
+ });
+
+ return (
+  v.year+"-"+v.month+"-"+v.day+
+  "T"+v.hour+":00"
+ );
+}
+
+
+/* =================================
+   6. تحميل ملفات بيانات النماذج
+================================= */
+
+function recordKey(lat,lon,hours){
+ return Number(lat).toFixed(2)+"|"+Number(lon).toFixed(2)+"|"+Number(hours);
+}
+
+async function loadForecast(){
+ if(weatherRecords && rainRecords){
+  drawForecast();
+  return;
+ }
+
+ statusBox.textContent="جارٍ تحميل ملفات بيانات النماذج الثلاثة...";
+
+ try{
+  const [weatherResponse,rainResponse]=await Promise.all([
+   fetch("lebanon_weather_map_ensemble.json",{cache:"no-store"}),
+   fetch("lebanon_rain_map.json",{cache:"no-store"})
+  ]);
+
+  if(!weatherResponse.ok)throw new Error("تعذر تحميل lebanon_weather_map.json (HTTP "+weatherResponse.status+")");
+  if(!rainResponse.ok)throw new Error("تعذر تحميل lebanon_rain_map.json (HTTP "+rainResponse.status+")");
+
+  const [weatherJson,rainJson]=await Promise.all([
+   weatherResponse.json(),
+   rainResponse.json()
+  ]);
+
+  if(!Array.isArray(weatherJson) || weatherJson.length!==816){
+   throw new Error("عدد سجلات ملف الطقس غير صحيح: "+(weatherJson && weatherJson.length));
+  }
+  if(!Array.isArray(rainJson) || rainJson.length!==816){
+   throw new Error("عدد سجلات ملف الأمطار غير صحيح: "+(rainJson && rainJson.length));
+  }
+
+  weatherRecords=weatherJson;
+  rainRecords=rainJson;
+  weatherIndex=new Map();
+  rainIndex=new Map();
+
+  weatherRecords.forEach(record=>{
+   weatherIndex.set(recordKey(record.latitude,record.longitude,record.hours),record);
+  });
+  rainRecords.forEach(record=>{
+   rainIndex.set(recordKey(record.latitude,record.longitude,record.hours),record);
+  });
+
+  if(weatherIndex.size!==816 || rainIndex.size!==816){
+   throw new Error("هناك سجلات مكررة أو ناقصة في ملفات JSON");
+  }
+
+  statusBox.textContent="تم تحميل بيانات ECMWF وGFS وICON: 816 سجلاً لكل ملف.";
+  drawForecast();
+
+ }catch(error){
+  console.error(error);
+  statusBox.textContent="خطأ في تحميل بيانات الموقع: "+error.message;
+ }
+}
+
+
+/* =================================
+   7. إعدادات عناصر الطقس والألوان
+================================= */
+
+const VARIABLE_CONFIG={
+ precipitation_sum:{
+  title:"تراكم الأمطار",unit:"ملم",threshold:0.1,
+  stops:[0,0.5,1.5,3,5,10,20,30,60],
+  colors:[[225,242,255],[185,233,255],[38,140,255],[0,200,232],[32,206,103],[245,237,37],[255,152,30],[240,44,48],[155,54,215]]
+ },
+ temperature_mean:{
+  title:"متوسط الحرارة",unit:"°C",threshold:null,
+  stops:[-10,-5,0,5,10,15,20,25,30,35,40],
+  colors:[[35,55,150],[45,105,205],[75,170,230],[130,215,235],[190,235,220],[245,240,150],[255,205,90],[250,145,55],[230,75,55],[185,35,65],[120,20,80]]
+ },
+ humidity_mean:{
+  title:"متوسط الرطوبة",unit:"%",threshold:null,
+  stops:[0,10,20,30,40,50,60,70,80,90,100],
+  colors:[[245,245,235],[225,240,220],[190,230,205],[145,215,205],[100,195,210],[65,165,210],[45,130,200],[40,95,175],[45,70,145],[55,50,120],[35,30,90]]
+ },
+ wind_speed_mean:{
+  title:"متوسط سرعة الرياح",unit:"كم/س",threshold:null,
+  stops:[0,5,10,15,20,25,30,40,50,60],
+  colors:[[235,245,255],[180,225,245],[105,200,225],[55,175,190],[65,190,130],[150,210,70],[240,220,55],[250,155,45],[230,85,45],[170,35,65]]
+ },
+ wind_speed_max:{
+  title:"أعلى سرعة رياح",unit:"كم/س",threshold:null,
+  stops:[0,5,10,15,20,25,30,40,50,60],
+  colors:[[235,245,255],[180,225,245],[105,200,225],[55,175,190],[65,190,130],[150,210,70],[240,220,55],[250,155,45],[230,85,45],[170,35,65]]
+ },
+ wind_gust_max:{
+  title:"أعلى هبّة رياح",unit:"كم/س",threshold:null,
+  stops:[0,10,20,30,40,50,60,70,80,100],
+  colors:[[235,245,255],[180,225,245],[105,200,225],[55,175,190],[65,190,130],[150,210,70],[240,220,55],[250,155,45],[230,85,45],[150,25,65]]
+ },
+ pressure_min:{
+  title:"أدنى ضغط جوي",unit:"hPa",threshold:null,
+  stops:[970,980,990,1000,1010,1020,1030,1040],
+  colors:[[100,35,130],[120,75,180],[80,125,205],[55,175,215],[80,200,165],[175,215,90],[245,210,65],[225,115,55]]
+ },
+ cloud_cover_mean:{
+  title:"متوسط الغطاء السحابي",unit:"%",threshold:null,
+  stops:[0,10,20,30,40,50,60,70,80,90,100],
+  colors:[[255,250,210],[245,240,185],[225,225,180],[195,210,185],[165,195,195],[135,175,205],[110,150,205],[95,120,190],[90,90,165],[80,65,135],[55,40,100]]
+ },
+ snowfall_sum:{
+  title:"تراكم الثلوج",unit:"سم",threshold:0.1,
+  stops:[0,0.1,0.5,1,2,5,10,20,30],
+  colors:[[245,250,255],[215,240,255],[165,220,255],[105,190,250],[65,150,235],[75,110,220],[100,75,190],[140,55,160],[85,35,120]]
+ }
+};
+
+function interpolateColor(value,config){
+ const stops=config.stops;
+ const colors=config.colors;
+ if(value<=stops[0])return colors[0];
+ if(value>=stops[stops.length-1])return colors[colors.length-1];
+ for(let i=0;i<stops.length-1;i++){
+  if(value>=stops[i] && value<=stops[i+1]){
+   const ratio=(value-stops[i])/(stops[i+1]-stops[i]);
+   return colors[i].map((c,k)=>Math.round(c+(colors[i+1][k]-c)*ratio));
+  }
+ }
+ return colors[colors.length-1];
+}
+
+function updateLegend(config){
+ const colorsBox=document.getElementById("legendColors");
+ const labelsBox=document.getElementById("legendLabels");
+ document.getElementById("legendTitle").textContent=config.title+" ("+config.unit+")";
+ const colorStops=config.colors;
+ colorsBox.innerHTML="";
+ for(let i=0;i<8;i++){
+  const value=config.stops[0]+(config.stops[config.stops.length-1]-config.stops[0])*(i/7);
+  const rgb=interpolateColor(value,config);
+  const span=document.createElement("span");
+  span.style.background="rgb("+rgb.join(",")+")";
+  colorsBox.appendChild(span);
+ }
+ labelsBox.innerHTML="";
+ [0,0.25,0.5,0.75,1].forEach(f=>{
+  const value=config.stops[0]+(config.stops[config.stops.length-1]-config.stops[0])*f;
+  const span=document.createElement("span");
+  span.textContent=Number(value.toFixed(1));
+  labelsBox.appendChild(span);
+ });
+}
+
+
+/* =================================
+   8. بناء شبكة بيانات النموذج المختار
+================================= */
+
+function getGridValues(hours,model,variable){
+ const values=Array(lats.length).fill(null).map(()=>Array(lons.length).fill(null));
+ locations.forEach(point=>{
+  const record=weatherIndex.get(recordKey(point.lat,point.lon,hours));
+  const raw=record && record.models && record.models[model]
+   ?record.models[model][variable]
+   :null;
+  const value=Number(raw);
+  if(raw!==null && raw!==undefined && Number.isFinite(value)){
+   values[point.j][point.i]=value;
+  }
+ });
+ return values;
+}
+
+/* =================================
+   10. الاستيفاء المكاني
+================================= */
+
+function interpolate(values,x,y){
+
+ const maxX=lons.length-1;
+ const maxY=lats.length-1;
+
+ if(
+  x<0 || x>maxX ||
+  y<0 || y>maxY
+ ){
+  return null;
+ }
+
+ const x0=Math.floor(x);
+ const y0=Math.floor(y);
+
+ const x1=Math.min(x0+1,maxX);
+ const y1=Math.min(y0+1,maxY);
+
+ const fx=x-x0;
+ const fy=y-y0;
+
+ const samples=[
+  [values[y0][x0],(1-fx)*(1-fy)],
+  [values[y0][x1],fx*(1-fy)],
+  [values[y1][x0],(1-fx)*fy],
+  [values[y1][x1],fx*fy]
+ ];
+
+ let total=0;
+ let weight=0;
+
+ samples.forEach(([value,w])=>{
+
+  if(
+   value!==null &&
+   Number.isFinite(value)
+  ){
+   total+=value*w;
+   weight+=w;
+  }
+
+ });
+
+ return weight>0?total/weight:null;
+}
+
+
+/* =================================
+   12. رسم خرائط عناصر الطقس
+================================= */
+
+function drawForecast(){
+ if(!weatherRecords || !rainRecords)return;
+ const hours=Number(periodSelect.value);
+ const model=modelSelect.value;
+ const variable=variableSelect.value;
+ const config=VARIABLE_CONFIG[variable];
+ const grids={};
+ ["ECMWF","GFS","ICON"].forEach(name=>{
+  grids[name]=getGridValues(hours,name,variable);
+ });
+ const values=grids[model];
+ const width=1100,height=1200;
+ const canvas=document.createElement("canvas");
+ canvas.width=width;canvas.height=height;
+ const ctx=canvas.getContext("2d");
+ const image=ctx.createImageData(width,height);
+ const pixels=image.data;
+ for(let py=0;py<height;py++){
+  const lat=MAX_LAT-(py/(height-1))*(MAX_LAT-MIN_LAT);
+  const gy=(lat-lats[0])/GRID_STEP;
+  for(let px=0;px<width;px++){
+   const lon=MIN_LON+(px/(width-1))*(MAX_LON-MIN_LON);
+   const gx=(lon-lons[0])/GRID_STEP;
+   const value=interpolate(values,gx,gy);
+   if(value===null)continue;
+   if(config.threshold!==null && value<config.threshold)continue;
+   const rgb=interpolateColor(value,config);
+   const index=(py*width+px)*4;
+   pixels[index]=rgb[0];pixels[index+1]=rgb[1];pixels[index+2]=rgb[2];pixels[index+3]=205;
+  }
+ }
+ ctx.putImageData(image,0,0);
+ if(forecastOverlay)map.removeLayer(forecastOverlay);
+ forecastOverlay=L.imageOverlay(canvas.toDataURL("image/png"),[[MIN_LAT,MIN_LON],[MAX_LAT,MAX_LON]],{opacity:1,interactive:true}).addTo(map);
+ forecastOverlay.on("click",function(event){
+  const lat=event.latlng.lat,lon=event.latlng.lng;
+  const gx=(lon-lons[0])/GRID_STEP,gy=(lat-lats[0])/GRID_STEP;
+  const selectedValue=interpolate(values,gx,gy);
+  const modelNames=["ECMWF","GFS","ICON"];
+  const comparison=modelNames.map(name=>{
+   const v=interpolate(grids[name],gx,gy);
+   return "<br>"+name+": <b>"+(v===null?"—":v.toFixed(1)+" "+config.unit)+"</b>";
+  }).join("");
+  let extra="";
+  if(variable==="precipitation_sum"){
+   const nearestLat=lats[Math.max(0,Math.min(lats.length-1,Math.round((lat-lats[0])/GRID_STEP)))];
+   const nearestLon=lons[Math.max(0,Math.min(lons.length-1,Math.round((lon-lons[0])/GRID_STEP)))];
+   const rain=rainIndex.get(recordKey(nearestLat,nearestLon,hours));
+   if(rain){
+    extra="<br><br>متوسط النماذج: "+Number(rain.mean).toFixed(1)+" ملم"+
+     "<br>مدى الاختلاف: "+Number(rain.spread).toFixed(1)+" ملم"+
+     "<br>اتفاق النماذج: "+rain.agreement;
+   }
+  }
+  L.popup().setLatLng(event.latlng).setContent(
+   "<b>"+config.title+"</b><br>"+
+   "الفترة: "+hours+" ساعة<br>"+
+   "النموذج المختار: "+model+"<br>"+
+   "القيمة: <b>"+(selectedValue===null?"لا تتوفر بيانات":selectedValue.toFixed(1)+" "+config.unit)+"</b>"+
+   "<br><br><b>مقارنة النماذج:</b>"+comparison+extra
+  ).openOn(map);
+ });
+ updateLegend(config);
+ statusBox.textContent="تم عرض "+config.title+" | "+model+" | "+hours+" ساعة | 272 نقطة.";
+}
+
+
+/* =================================
+   13. إيقاف طبقة التوقعات
+================================= */
+
+function removeForecast(){
+
+ if(forecastOverlay){
+
+  map.removeLayer(forecastOverlay);
+
+  forecastOverlay=null;
+
+ }
+
+}
+
+
+/* =================================
+   14. تحميل توقيت الرادار
+================================= */
+
+async function loadRadarTimeline(){
+
+ if(radarLoading)return;
+
+ radarLoading=true;
+
+ statusBox.textContent=
+  "جارٍ الاتصال بمصدر الرادار...";
+
+ try{
+
+  const response=await fetch(
+   "https://api.rainviewer.com/public/weather-maps.json",
+   {cache:"no-store"}
+  );
+
+  if(!response.ok){
+   throw new Error("Radar HTTP "+response.status);
+  }
+
+  const data=await response.json();
+
+  if(
+   !data.host ||
+   !data.radar ||
+   !Array.isArray(data.radar.past) ||
+   data.radar.past.length===0
+  ){
+   throw new Error("لا توجد صور رادار متاحة حالياً");
+  }
+
+  radarManifest=data;
+
+  radarFrames=data.radar.past;
+
+  const slider=document.getElementById("radarSlider");
+
+  slider.min=0;
+  slider.max=radarFrames.length-1;
+
+  radarIndex=radarFrames.length-1;
+
+  slider.value=radarIndex;
+
+  showRadarFrame(radarIndex);
+
+  statusBox.textContent=
+   "تم تحميل "+radarFrames.length+
+   " صورة رادارية من آخر ساعتين. "+
+   "التغطية في لبنان غير مضمونة.";
+
+ }catch(error){
+
+  console.error(error);
+
+  statusBox.textContent=
+   "تعذر تحميل الرادار: "+error.message+
+   ". يمكنك إعادة المحاولة لاحقاً.";
+
+ }finally{
+
+  radarLoading=false;
+
+ }
+
+}
+
+
+/* =================================
+   15. عرض إطار راداري
+================================= */
+
+function formatRadarTime(timestamp){
+
+ return new Date(timestamp*1000)
+  .toLocaleString(
+   "ar-LB",
+   {
+    timeZone:"Asia/Beirut",
+    day:"2-digit",
+    month:"2-digit",
+    hour:"2-digit",
+    minute:"2-digit"
+   }
+  );
+
+}
+
+function showRadarFrame(index){
+
+ if(!radarFrames.length || !radarManifest){
+  return;
+ }
+
+ index=Math.max(
+  0,
+  Math.min(radarFrames.length-1,index)
+ );
+
+ radarIndex=index;
+
+ const frame=radarFrames[index];
+
+ const slider=document.getElementById("radarSlider");
+
+ slider.value=index;
+
+ document.getElementById("radarTime").textContent=
+  "توقيت الصورة: "+
+  formatRadarTime(frame.time)+
+  " - بتوقيت بيروت";
+
+ if(radarLayer){
+
+  map.removeLayer(radarLayer);
+
+  radarLayer=null;
+
+ }
+
+ const tileSize=
+  window.devicePixelRatio>=2
+   ?512
+   :256;
+
+ const tileURL=
+  radarManifest.host+
+  frame.path+
+  "/"+tileSize+
+  "/{z}/{x}/{y}/2/1_1.png";
+
+ radarLayer=L.tileLayer(
+  tileURL,
+  {
+   tileSize:256,
+   maxNativeZoom:7,
+   maxZoom:18,
+   opacity:0.78,
+   attribution:
+    'Radar data &copy; <a href="https://www.rainviewer.com/">RainViewer</a>'
+  }
+ ).addTo(map);
+
+}
+
+
+/* =================================
+   16. تشغيل وإيقاف الحركة
+================================= */
+
+function stopRadar(){
+
+ if(radarTimer){
+
+  clearInterval(radarTimer);
+
+  radarTimer=null;
+
+ }
+
+ document.getElementById("playRadar").textContent=
+  "تشغيل ▶";
+
+}
+
+function playRadar(){
+
+ if(radarTimer){
+
+  stopRadar();
+
+  return;
+ }
+
+ if(!radarFrames.length)return;
+
+ document.getElementById("playRadar").textContent=
+  "إيقاف ⏸";
+
+ radarTimer=setInterval(()=>{
+
+  let next=radarIndex+1;
+
+  if(next>=radarFrames.length){
+   next=0;
+  }
+
+  showRadarFrame(next);
+
+ },900);
+
+}
+
+
+/* =================================
+   17. أزرار الرادار
+================================= */
+
+document.getElementById("playRadar")
+ .addEventListener("click",playRadar);
+
+document.getElementById("previousFrame")
+ .addEventListener("click",()=>{
+
+  stopRadar();
+
+  showRadarFrame(radarIndex-1);
+
+ });
+
+document.getElementById("nextFrame")
+ .addEventListener("click",()=>{
+
+  stopRadar();
+
+  showRadarFrame(radarIndex+1);
+
+ });
+
+document.getElementById("radarSlider")
+ .addEventListener("input",function(){
+
+  stopRadar();
+
+  showRadarFrame(Number(this.value));
+
+ });
+
+document.getElementById("refreshRadar")
+ .addEventListener("click",()=>{
+
+  stopRadar();
+
+  loadRadarTimeline();
+
+ });
+
+
+/* =================================
+   18. التبديل بين الخرائط
+================================= */
+
+modeSelect.addEventListener("change",async function(){
+
+ const mode=this.value;
+
+ stopRadar();
+
+ if(mode==="radar"){
+
+  document.getElementById("periodBox").style.display="none";
+
+  document.getElementById("forecastLegend").style.display="none";
+
+  document.getElementById("radarControls").style.display="block";
+
+  removeForecast();
+
+  await loadRadarTimeline();
+
+ }else{
+
+  document.getElementById("periodBox").style.display="block";
+
+  document.getElementById("forecastLegend").style.display="block";
+
+  document.getElementById("radarControls").style.display="none";
+
+  if(radarLayer){
+
+   map.removeLayer(radarLayer);
+
+   radarLayer=null;
+
+  }
+
+  await loadForecast();
+
+ }
+
+});
+
+
+/* =================================
+   19. تغيير فترة التوقعات
+================================= */
+
+periodSelect.addEventListener("change",drawForecast);
+modelSelect.addEventListener("change",drawForecast);
+variableSelect.addEventListener("change",drawForecast);
+
+
+/* =================================
+   20. التشغيل الأول
+================================= */
+
+loadLebanonBoundary();
+loadForecast();
+
+</script>
+
+</body>
+</html>
